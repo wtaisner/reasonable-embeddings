@@ -10,7 +10,7 @@ for cmd in cython $CC $CXX; do
 	command -v "$cmd" &>/dev/null || panic "fatal error: $cmd is not installed"
 done
 
-PYTHON_HEADERS="${CONDA_PREFIX:-/usr}/include/python3.9"
+PYTHON_HEADERS="${CONDA_PREFIX:-/usr}/include/python3.11"
 FACTPP_HEADERS="factplusplus/Kernel"
 
 CFLAGS="-O2 -Wall -Wextra -fPIC -ffast-math -pipe -march=native -I$FACTPP_HEADERS"
@@ -44,12 +44,12 @@ done
 if [ build/factpp.cpp -nt build/factpp.o ]; then
 	echo "build build/factpp.cpp"
 	# -Wp,-w silences the ("unlikely" redefined) preprocessor warning
-	$CXX $CPYFLAGS -Wp,-w -o build/factpp.o build/factpp.cpp &
+	$CXX $CPYFLAGS -c -Wp,-w -o build/factpp.o build/factpp.cpp &
 fi
 
 if [ build/owlfun.c -nt build/owlfun.o ]; then
 	echo "build build/owlfun.c"
-	$CC $CPYFLAGS -o build/owlfun.o build/owlfun.c &
+	$CC $CPYFLAGS -c -o build/owlfun.o build/owlfun.c &
 fi
 
 wait
@@ -59,4 +59,3 @@ $CXX $CPYFLAGS -o src/simplefact/factpp.so build/factpp.o build/kernel/*.o
 
 echo "link src/simplefact/owlfun.so"
 $CC $CPYFLAGS -o src/simplefact/owlfun.so build/owlfun.o
-
