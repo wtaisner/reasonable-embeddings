@@ -10,3 +10,6 @@ local/*
 local/out/*
 !local/out/dataset
 !local/out/img
+
+.idea/
+.vscode/
