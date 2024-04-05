@@ -1,5 +1,5 @@
 import numpy as np
-import torch as T
+import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from sklearn import metrics
@@ -46,8 +46,8 @@ def core(expr):
 
 
 def im(c, d):
-    cxd = T.outer(c, d).view(-1)
-    return T.cat((c, d, cxd))
+    cxd = torch.outer(c, d).view(-1)
+    return torch.cat((c, d, cxd))
 
 
 class NeuralReasoner(nn.Module):
@@ -62,9 +62,9 @@ class NeuralReasoner(nn.Module):
         seed=None,
     ):
         super().__init__()
-        with T.random.fork_rng(enabled=seed is not None):
+        with torch.random.fork_rng(enabled=seed is not None):
             if seed is not None:
-                T.random.manual_seed(seed)
+                torch.random.manual_seed(seed)
 
             self.head = head
             self.embs = embs
@@ -93,7 +93,7 @@ class NeuralReasoner(nn.Module):
         return self.head.encode(core(expr), self.embs).detach().numpy()
 
     def check(self, axiom):
-        return T.sigmoid(self.head.classify_batch([core(axiom)], [self.embs]))[0].item()
+        return torch.sigmoid(self.head.classify_batch([core(axiom)], [self.embs]))[0].item()
 
     def check_sub(self, c, d):
         return self.check((SUB, c, d))
@@ -105,7 +105,7 @@ class EmbeddingLayer(nn.Module):
         self.n_concepts = n_concepts
         self.n_roles = n_roles
         self.emb_size = emb_size
-        self.concepts = nn.Parameter(T.zeros((n_concepts, emb_size)))
+        self.concepts = nn.Parameter(torch.zeros((n_concepts, emb_size)))
         self.roles = nn.ModuleList(
             [nn.Linear(emb_size, emb_size) for _ in range(n_roles)]
         )
@@ -124,8 +124,8 @@ class ReasonerHead(nn.Module):
     def __init__(self, *, emb_size, hidden_size, hidden_count=1):
         super().__init__()
         self.hidden_size, self.emb_size = hidden_size, emb_size
-        self.bot_concept = nn.Parameter(T.zeros((1, emb_size)))
-        self.top_concept = nn.Parameter(T.zeros((1, emb_size)))
+        self.bot_concept = nn.Parameter(torch.zeros((1, emb_size)))
+        self.top_concept = nn.Parameter(torch.zeros((1, emb_size)))
         self.not_nn = nn.Linear(emb_size, emb_size)
         self.and_nn = nn.Linear(2 * emb_size + emb_size**2, emb_size)
 
@@ -138,7 +138,7 @@ class ReasonerHead(nn.Module):
         self.sub_nn = nn.Sequential(*sub_nn)
 
         self.rvnn_act = lambda x: x
-        # self.rvnn_act = T.tanh
+        # self.rvnn_act = torch.tanh
 
         nn.init.xavier_normal_(self.bot_concept)
         nn.init.xavier_normal_(self.top_concept)
@@ -174,7 +174,7 @@ class ReasonerHead(nn.Module):
         return rec(axiom)
 
     def classify_batch(self, axioms, embeddings):
-        return T.vstack(
+        return torch.vstack(
             [self.encode(axiom, emb) for axiom, emb in zip(axioms, embeddings)]
         )
 
@@ -208,12 +208,12 @@ def eval_batch(
         indices = list(range(len(X)))
     emb = [encoders[onto_idx[i]] for i in indices]
     X_ = [core(X[i]) for i in indices]
-    y_ = T.tensor([float(y[i]) for i in indices]).unsqueeze(1)
+    y_ = torch.tensor([float(y[i]) for i in indices]).unsqueeze(1)
     Y_ = reasoner.classify_batch(X_, emb)
     loss = F.binary_cross_entropy_with_logits(Y_, y_, reduction="mean")
     if backward:
         loss.backward()
-    Y_ = T.sigmoid(Y_)
+    Y_ = torch.sigmoid(Y_)
     if detach:
         loss = loss.item()
         y_ = y_.detach().numpy().reshape(-1)
@@ -231,11 +231,12 @@ def train(
     batch_size=32,
     logger=None,
     validate=True,
-    optimizer=T.optim.AdamW,
+    optimizer=torch.optim.AdamW,
     lr_reasoner=0.0001,
     lr_encoder=0.0002,
     freeze_reasoner=False,
     run_name="train",
+    device=torch.device("cpu")
 ):
     idx_tr, X_tr, y_tr = data_tr
     idx_vl, X_vl, y_vl = data_vl if data_vl is not None else data_tr
@@ -244,6 +245,7 @@ def train(
 
     optimizers = []
     for encoder in encoders:
+        encoder = encoder.to(device)
         optimizers.append(optimizer(encoder.parameters(), lr=lr_encoder))
 
     if freeze_reasoner:
@@ -254,7 +256,8 @@ def train(
     logger.begin_run(epoch_count=epoch_count, run=run_name)
     for epoch_idx in range(epoch_count + 1):
         # Training
-        batches = minibatches(T.randperm(len(X_tr)), batch_size)
+        X_tr = X_tr.to(device) # ??? co tu jest do wrzucenia
+        batches = minibatches(torch.randperm(len(X_tr)), batch_size)
         logger.begin_epoch(batch_count=len(batches))
         for idxs in batches:
             for optim in optimizers:
@@ -268,7 +271,7 @@ def train(
 
         # Validation
         if validate:
-            with T.no_grad():
+            with torch.no_grad():
                 val_loss, yb, Yb = eval_batch(reasoner, encoders, X_vl, y_vl, idx_vl)
                 logger.step_validate(val_loss, yb, Yb, idx_vl)
 

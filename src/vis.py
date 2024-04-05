@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn import metrics
 from sklearn.decomposition import PCA
-from simplefact.syntax import *
+from .simplefact.syntax import *
 
 pca = None
 
