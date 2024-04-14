@@ -256,7 +256,7 @@ def train(
     logger.begin_run(epoch_count=epoch_count, run=run_name)
     for epoch_idx in range(epoch_count + 1):
         # Training
-        X_tr = X_tr.to(device) # ??? co tu jest do wrzucenia
+        # X_tr = X_tr.to(device) # ??? co tu jest do wrzucenia
         batches = minibatches(torch.randperm(len(X_tr)), batch_size)
         logger.begin_epoch(batch_count=len(batches))
         for idxs in batches:

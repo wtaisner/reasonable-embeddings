@@ -1,7 +1,7 @@
 from pathlib import Path
+import lzma
 from joblib import Parallel, delayed
 
-import lzma
 import dill
 
 import numpy as np
@@ -13,19 +13,21 @@ from src.reasoner import ReasonerHead, EmbeddingLayer, train, eval_batch
 from src.utils import timestr, paramcount
 from src.elpp.gen import split_dataset
 
-base_dir = Path("local/out/elpp/exp1")
+base_dir = Path("local/out/elpp")
 base_dir.mkdir(parents=True, exist_ok=True)
 ts = timestr()
 
-reasoners_path = "reasoners_400_concepts_4_roles_1_proofs.dill.xz"
-test_reasoners_path = "test_reasoners_400_concepts_4_roles_1_proofs.dill.xz"
+reasoners_path = "reasoners_300_concepts_5_roles_100_proofs.dill.xz"
+test_reasoners_path = "test_reasoners_300_concepts_5_roles_100_proofs.dill.xz"
 seed = 2022
-emb_size = 32
+emb_size = 1
 hidden_size = 16
 epoch_count = 15
 test_epoch_count = 10
-batch_size = 32
+batch_size = 128
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+suffix = f"emb_size_{emb_size}_hidden_size_{hidden_size}_{reasoners_path}"
 
 if __name__ == "__main__":
 
@@ -89,7 +91,7 @@ if __name__ == "__main__":
         for key, value in artifacts.items()
     }
 
-    with lzma.open(base_dir / "exp1.dill.xz", "wb") as f:
+    with lzma.open(base_dir / f"exp1_{suffix}.dill.xz", "wb") as f:
         dill.dump(tmp, f)
 
     rows = []
@@ -100,23 +102,29 @@ if __name__ == "__main__":
             _, _, Y_te_good = eval_batch(
                 components["reasoner"], components["encoders"], X_te, y_te, idx_te
             )
-        for i in range(len(idx_te)):
-            idx = idx_te[i]
+        # for i in range(len(idx_te)):
+        #     idx = idx_te[i]
+        #     axiom = X_te[i]
+        #     expected = y_te[i]
+        #     predicted = Y_te_good[i]
+        #     complexity = len(reasoners[idx].decode_shortest_proof(axiom[1], axiom[2]))
+        #     rows.append(
+        #         [
+        #             complexity_threshold,
+        #             idx,
+        #             complexity,
+        #             axiom,
+        #             expected,
+        #             int(predicted >= 0.5),
+        #             predicted,
+        #         ]
+        #     )
+        for i, idx in enumerate(idx_te):
             axiom = X_te[i]
             expected = y_te[i]
             predicted = Y_te_good[i]
             complexity = len(reasoners[idx].decode_shortest_proof(axiom[1], axiom[2]))
-            rows.append(
-                [
-                    complexity_threshold,
-                    idx,
-                    complexity,
-                    axiom,
-                    expected,
-                    int(predicted >= 0.5),
-                    predicted,
-                ]
-            )
+            rows.append([complexity_threshold, idx, complexity, axiom, expected, int(predicted >= 0.5), predicted])
     df = pd.DataFrame(
             rows,
             columns=[
@@ -129,13 +137,13 @@ if __name__ == "__main__":
                 "Raw predicted",
             ],
         )
-    df.to_feather(base_dir / "exp1.feather")
+    df.to_feather(base_dir / f"exp1_{suffix}.feather")
     
     # === experiment 3 ===
     with lzma.open(base_dir / reasoners_path, 'rb') as f:
         reasoners = dill.load(f)
     
-    with lzma.open(base_dir / 'exp1.dill.xz', 'rb') as f:
+    with lzma.open(base_dir / f'exp1_{suffix}.dill.xz', 'rb') as f:
         artifacts = dill.load(f)
 
     for key, components in artifacts.items():
@@ -173,8 +181,14 @@ if __name__ == "__main__":
             _, _, Y_te_good = eval_batch(neural_reasoner, my_encoders, X_te, y_te, idx_te)
 
         rows = []
-        for i in range(len(idx_te)):
-            idx = idx_te[i]
+        # for i in range(len(idx_te)):
+        #     idx = idx_te[i]
+        #     axiom = X_te[i]
+        #     expected = y_te[i]
+        #     predicted = Y_te_good[i]
+        #     complexity = len(test_reasoners[idx].decode_shortest_proof(axiom[1], axiom[2]))
+        #     rows.append([complexity_threshold_j, complexity_threshold_k, idx, complexity, axiom, expected, int(predicted >= .5), predicted])
+        for i, idx in enumerate(idx_te):
             axiom = X_te[i]
             expected = y_te[i]
             predicted = Y_te_good[i]
@@ -200,10 +214,10 @@ if __name__ == "__main__":
         'encoders': {key: [e.state_dict() for e in encs] for key, encs in encoders.items()}
     }
 
-    with lzma.open(base_dir / 'exp3.dill.xz', 'wb') as f:
+    with lzma.open(base_dir / f'exp3_{suffix}.dill.xz', 'wb') as f:
         dill.dump(tmp, f)
     
     df = pd.DataFrame(rows, columns=["Complexity threshold j","Complexity threshold k", "KB", "Complexity", "Axiom", "Expected", "Predicted",
                                  "Raw predicted"])
-    df.to_feather(base_dir / 'exp3.feather')
+    df.to_feather(base_dir / f'exp3_{suffix}.feather')
         
