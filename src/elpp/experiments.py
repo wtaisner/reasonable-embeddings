@@ -17,17 +17,17 @@ base_dir = Path("local/out/elpp")
 base_dir.mkdir(parents=True, exist_ok=True)
 ts = timestr()
 
-reasoners_path = "reasoners_300_concepts_5_roles_100_proofs.dill.xz"
-test_reasoners_path = "test_reasoners_300_concepts_5_roles_100_proofs.dill.xz"
+reasoners_path = "reasoners/reasoners_300_concepts_5_roles_200_proofs.dill.xz"
+test_reasoners_path = "reasoners/test_reasoners_300_concepts_5_roles_200_proofs.dill.xz"
 seed = 2022
 emb_size = 1
 hidden_size = 16
 epoch_count = 15
 test_epoch_count = 10
-batch_size = 128
+batch_size = 32
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-suffix = f"emb_size_{emb_size}_hidden_size_{hidden_size}_{reasoners_path}"
+suffix = f"emb_size_{emb_size}_hidden_size_{hidden_size}_{reasoners_path.split('/')[-1].replace('.dill.xz', '')}"
 
 if __name__ == "__main__":
 
@@ -102,23 +102,6 @@ if __name__ == "__main__":
             _, _, Y_te_good = eval_batch(
                 components["reasoner"], components["encoders"], X_te, y_te, idx_te
             )
-        # for i in range(len(idx_te)):
-        #     idx = idx_te[i]
-        #     axiom = X_te[i]
-        #     expected = y_te[i]
-        #     predicted = Y_te_good[i]
-        #     complexity = len(reasoners[idx].decode_shortest_proof(axiom[1], axiom[2]))
-        #     rows.append(
-        #         [
-        #             complexity_threshold,
-        #             idx,
-        #             complexity,
-        #             axiom,
-        #             expected,
-        #             int(predicted >= 0.5),
-        #             predicted,
-        #         ]
-        #     )
         for i, idx in enumerate(idx_te):
             axiom = X_te[i]
             expected = y_te[i]
@@ -162,7 +145,6 @@ if __name__ == "__main__":
     splits = {complexity_threshold_k: split_dataset(test_reasoners, np.random.default_rng(seed=0xbeef),
                                                 complexity_threshold=complexity_threshold_k) for complexity_threshold_k
           in range(2, 21)}
-    # encoders = {}
 
 
     def train_helper(complexity_threshold_j, complexity_threshold_k):
@@ -181,13 +163,6 @@ if __name__ == "__main__":
             _, _, Y_te_good = eval_batch(neural_reasoner, my_encoders, X_te, y_te, idx_te)
 
         rows = []
-        # for i in range(len(idx_te)):
-        #     idx = idx_te[i]
-        #     axiom = X_te[i]
-        #     expected = y_te[i]
-        #     predicted = Y_te_good[i]
-        #     complexity = len(test_reasoners[idx].decode_shortest_proof(axiom[1], axiom[2]))
-        #     rows.append([complexity_threshold_j, complexity_threshold_k, idx, complexity, axiom, expected, int(predicted >= .5), predicted])
         for i, idx in enumerate(idx_te):
             axiom = X_te[i]
             expected = y_te[i]
