@@ -19,13 +19,17 @@ ts = timestr()
 
 reasoners_path = "reasoners/reasoners_300_concepts_5_roles_200_proofs.dill.xz"
 test_reasoners_path = "reasoners/test_reasoners_300_concepts_5_roles_200_proofs.dill.xz"
+
 seed = 2022
-emb_size = 1
-hidden_size = 16
+emb_size = 300
+hidden_size = 300
 epoch_count = 15
 test_epoch_count = 10
-batch_size = 32
+batch_size = 128
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+print(f"device: {device}")
+
+torch.set_num_threads(1)
 
 suffix = f"emb_size_{emb_size}_hidden_size_{hidden_size}_{reasoners_path.split('/')[-1].replace('.dill.xz', '')}"
 
@@ -38,7 +42,6 @@ if __name__ == "__main__":
     artifacts = {}
 
     for complexity_threshold in range(2, 21):
-
         print("Complexity threshold", complexity_threshold)
 
         training, validation, test = split_dataset(
@@ -48,13 +51,13 @@ if __name__ == "__main__":
         )
 
         torch.manual_seed(seed)
-        trained_reasoner = ReasonerHead(emb_size=emb_size, hidden_size=hidden_size)
+        trained_reasoner = ReasonerHead(emb_size=emb_size, hidden_size=hidden_size).to(device)
         encoders = [
             EmbeddingLayer(
                 emb_size=emb_size,
                 n_concepts=reasoner.n_concepts,
                 n_roles=reasoner.n_roles,
-            )
+            ).to(device)
             for reasoner in reasoners
         ]
 
@@ -70,6 +73,7 @@ if __name__ == "__main__":
             encoders,
             epoch_count=epoch_count,
             batch_size=batch_size,
+            device=device,
         )
 
         artifacts[complexity_threshold] = {
@@ -151,10 +155,10 @@ if __name__ == "__main__":
         neural_reasoner = artifacts[complexity_threshold_j]["reasoner"]
         training, validation, test = splits[complexity_threshold_k]
         torch.manual_seed(seed)
-        my_encoders = [EmbeddingLayer(emb_size=emb_size, n_concepts=reasoner.n_concepts, n_roles=reasoner.n_roles) for
+        my_encoders = [EmbeddingLayer(emb_size=emb_size, n_concepts=reasoner.n_concepts, n_roles=reasoner.n_roles).to(device) for
                     reasoner in test_reasoners]
-
-        train_logger = train(training, validation, neural_reasoner, my_encoders, epoch_count=epoch_count,
+        
+        train_logger = train(training, validation, neural_reasoner.to(device), my_encoders, epoch_count=epoch_count,
                             batch_size=batch_size,
                             freeze_reasoner=True, validate=False)
 

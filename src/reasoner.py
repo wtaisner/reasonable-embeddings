@@ -175,7 +175,7 @@ class ReasonerHead(nn.Module):
 
     def classify_batch(self, axioms, embeddings):
         return torch.vstack(
-            [self.encode(axiom, emb) for axiom, emb in zip(axioms, embeddings)]
+            [self.encode(axiom, emb.to(torch.device("cuda"))) for axiom, emb in zip(axioms, embeddings)]
         )
 
     def classify(self, axiom, emb):
@@ -202,22 +202,22 @@ def batch_stats(Y, y, **other):
 
 
 def eval_batch(
-    reasoner, encoders, X, y, onto_idx, indices=None, *, backward=False, detach=True
+    reasoner, encoders, X, y, onto_idx, indices=None, *, backward=False, detach=True, device=torch.device("cuda")
 ):
     if indices is None:
         indices = list(range(len(X)))
-    emb = [encoders[onto_idx[i]] for i in indices]
+    emb = [encoders[onto_idx[i]].to(device) for i in indices]
     X_ = [core(X[i]) for i in indices]
-    y_ = torch.tensor([float(y[i]) for i in indices]).unsqueeze(1)
-    Y_ = reasoner.classify_batch(X_, emb)
+    y_ = torch.tensor([float(y[i]) for i in indices]).unsqueeze(1).to(device)
+    Y_ = reasoner.classify_batch(X_, emb).to(device)
     loss = F.binary_cross_entropy_with_logits(Y_, y_, reduction="mean")
     if backward:
         loss.backward()
     Y_ = torch.sigmoid(Y_)
     if detach:
         loss = loss.item()
-        y_ = y_.detach().numpy().reshape(-1)
-        Y_ = Y_.detach().numpy().reshape(-1)
+        y_ = y_.detach().cpu().numpy().reshape(-1)
+        Y_ = Y_.detach().cpu().numpy().reshape(-1)
     return loss, list(y_), list(Y_)
 
 
@@ -256,14 +256,13 @@ def train(
     logger.begin_run(epoch_count=epoch_count, run=run_name)
     for epoch_idx in range(epoch_count + 1):
         # Training
-        # X_tr = X_tr.to(device) # ??? co tu jest do wrzucenia
         batches = minibatches(torch.randperm(len(X_tr)), batch_size)
         logger.begin_epoch(batch_count=len(batches))
         for idxs in batches:
             for optim in optimizers:
                 optim.zero_grad()
             loss, yb, Yb = eval_batch(
-                reasoner, encoders, X_tr, y_tr, idx_tr, idxs, backward=epoch_idx > 0
+                reasoner, encoders, X_tr, y_tr, idx_tr, idxs, backward=epoch_idx > 0, device=device
             )
             for optim in optimizers:
                 optim.step()
@@ -272,7 +271,7 @@ def train(
         # Validation
         if validate:
             with torch.no_grad():
-                val_loss, yb, Yb = eval_batch(reasoner, encoders, X_vl, y_vl, idx_vl)
+                val_loss, yb, Yb = eval_batch(reasoner, encoders, X_vl, y_vl, idx_vl, device=device)
                 logger.step_validate(val_loss, yb, Yb, idx_vl)
 
         logger.end_epoch()
